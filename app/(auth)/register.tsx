@@ -17,6 +17,8 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+const BASE_URL = "http://localhost:5000";
+
 export default function RegisterPage() {
   const [form, setForm] = useState({
     name: "",
@@ -25,74 +27,117 @@ export default function RegisterPage() {
     confirmPassword: "",
   });
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-
-  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword]   = useState(false);
+  const [showConfirm, setShowConfirm]     = useState(false);
+  const [loading, setLoading]             = useState(false);
 
   const [focus, setFocus] = useState({
-    name: false,
-    email: false,
-    password: false,
-    confirm: false,
+    name: false, email: false, password: false, confirm: false,
   });
 
-  // =========================
-  // REGISTER — logic tidak diubah, hanya IP disamakan dengan login
-  // =========================
+  // HANDLE REGISTER
   const handleRegister = async () => {
-    if (form.password !== form.confirmPassword) {
-      Alert.alert("Error", "Password tidak cocok");
+
+    // ── Validasi frontend ──────────────────────────────────────
+    if (!form.name.trim()) {
+      Alert.alert("Error", "Nama tidak boleh kosong");
       return;
     }
-
+    if (!form.email.trim() || !/\S+@\S+\.\S+/.test(form.email)) {
+      Alert.alert("Error", "Format email tidak valid");
+      return;
+    }
     if (form.password.length < 6) {
       Alert.alert("Error", "Password minimal 6 karakter");
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      Alert.alert("Error", "Password tidak cocok");
       return;
     }
 
     setLoading(true);
 
     try {
-      const res = await fetch(
-        "http://192.168.100.231:5000/api/auth/register", // ← IP disamakan dengan login
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username: form.name,
-            email: form.email,
-            password: form.password,
-          }),
-        }
-      );
+      console.log("Mengirim register ke:", `${BASE_URL}/api/auth/register`);
 
-      const data = await res.json();
+      const res = await fetch(`${BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: form.name.trim(),
+          email:    form.email.trim().toLowerCase(),
+          password: form.password,
+        }),
+      });
 
-      if (!res.ok) {
-        throw new Error(data.message || "Register gagal");
+      console.log("Status response:", res.status);
+
+      // Parse response JSON
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Response dari server tidak valid");
       }
 
-      await AsyncStorage.setItem("token", data.token);
-     await AsyncStorage.setItem(
+      console.log("Data response:", data);
+
+      // Handle error dari server (email sudah terdaftar, dll)
+      if (!res.ok) {
+        throw new Error(data.message || `Gagal register (${res.status})`);
+      }2
+
+      // simpan token
+await AsyncStorage.setItem("token", data.token);
+
+// simpan data user
+await AsyncStorage.setItem(
   "user",
-  JSON.stringify(data.user || data.data || data)
+  JSON.stringify(data.user)
 );
 
-      Alert.alert("Berhasil", "Akun berhasil dibuat");
+// alert berhasil
+Alert.alert("Berhasil", "Register berhasil 🎉");
 
-      router.replace("/(tabs)/homepage");
+// pindah ke homepage
+router.replace("/(tabs)/homepage");
 
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Terjadi kesalahan";
-      Alert.alert("Error", errorMessage);
+await AsyncStorage.setItem("token", data.token);
+
+// simpan data user
+await AsyncStorage.setItem(
+  "user",
+  JSON.stringify(data.user)
+);
+
+// alert berhasil
+Alert.alert("Berhasil", "Register berhasil 🎉");
+
+// pindah ke homepage
+router.replace("/(tabs)/homepage");
+
+    } catch (err: any) {
+      console.log("REGISTER ERROR:", err);
+
+      // Bedakan error koneksi vs error dari server
+      if (err.message?.includes("Network request failed") ||
+          err.message?.includes("ERR_CONNECTION")) {
+        Alert.alert(
+          "Koneksi Gagal",
+          "Tidak bisa terhubung ke server.\n\nPastikan:\n• HP & laptop di WiFi yang sama\n• Server backend sudah jalan\n• IP di BASE_URL sudah benar"
+        );
+      } else {
+        Alert.alert("Gagal Register", err.message || "Terjadi kesalahan");
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // RENDER
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -105,8 +150,7 @@ export default function RegisterPage() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-
-        {/* HERO */}
+        {/* ── HERO ── */}
         <View style={styles.hero}>
           <View style={styles.circleTopRight} />
           <View style={styles.circleBottomLeft} />
@@ -127,7 +171,7 @@ export default function RegisterPage() {
           </View>
         </View>
 
-        {/* CARD */}
+        {/* ── CARD ── */}
         <View style={styles.card}>
           <View style={styles.cardAccent} />
 
@@ -146,9 +190,10 @@ export default function RegisterPage() {
                 placeholderTextColor="#c4a98a"
                 style={styles.input}
                 value={form.name}
-                onChangeText={(text) => setForm({ ...form, name: text })}
+                onChangeText={(t) => setForm({ ...form, name: t })}
                 onFocus={() => setFocus({ ...focus, name: true })}
-                onBlur={() => setFocus({ ...focus, name: false })}
+                onBlur={()  => setFocus({ ...focus, name: false })}
+                autoCapitalize="words"
               />
             </View>
           </View>
@@ -165,9 +210,9 @@ export default function RegisterPage() {
                 value={form.email}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                onChangeText={(text) => setForm({ ...form, email: text })}
+                onChangeText={(t) => setForm({ ...form, email: t })}
                 onFocus={() => setFocus({ ...focus, email: true })}
-                onBlur={() => setFocus({ ...focus, email: false })}
+                onBlur={()  => setFocus({ ...focus, email: false })}
               />
             </View>
           </View>
@@ -178,19 +223,26 @@ export default function RegisterPage() {
             <View style={[styles.inputWrapper, focus.password && styles.inputFocused]}>
               <Feather name="lock" size={18} color="#a07a5e" style={styles.inputIcon} />
               <TextInput
-                placeholder="Password"
+                placeholder="Minimal 6 karakter"
                 placeholderTextColor="#c4a98a"
                 secureTextEntry={!showPassword}
                 style={[styles.input, { flex: 1 }]}
                 value={form.password}
-                onChangeText={(text) => setForm({ ...form, password: text })}
+                onChangeText={(t) => setForm({ ...form, password: t })}
                 onFocus={() => setFocus({ ...focus, password: true })}
-                onBlur={() => setFocus({ ...focus, password: false })}
+                onBlur={()  => setFocus({ ...focus, password: false })}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                 <Feather name={showPassword ? "eye" : "eye-off"} size={18} color="#a07a5e" />
               </TouchableOpacity>
             </View>
+            {/* hint panjang password */}
+            {form.password.length > 0 && form.password.length < 6 && (
+              <View style={styles.hintRow}>
+                <Feather name="alert-circle" size={12} color="#ef4444" />
+                <Text style={styles.hintText}>Password kurang dari 6 karakter</Text>
+              </View>
+            )}
           </View>
 
           {/* CONFIRM PASSWORD */}
@@ -204,25 +256,35 @@ export default function RegisterPage() {
                 secureTextEntry={!showConfirm}
                 style={[styles.input, { flex: 1 }]}
                 value={form.confirmPassword}
-                onChangeText={(text) => setForm({ ...form, confirmPassword: text })}
+                onChangeText={(t) => setForm({ ...form, confirmPassword: t })}
                 onFocus={() => setFocus({ ...focus, confirm: true })}
-                onBlur={() => setFocus({ ...focus, confirm: false })}
+                onBlur={()  => setFocus({ ...focus, confirm: false })}
               />
               <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
                 <Feather name={showConfirm ? "eye" : "eye-off"} size={18} color="#a07a5e" />
               </TouchableOpacity>
             </View>
+            {/* hint password tidak cocok */}
+            {form.confirmPassword.length > 0 && form.password !== form.confirmPassword && (
+              <View style={styles.hintRow}>
+                <Feather name="alert-circle" size={12} color="#ef4444" />
+                <Text style={styles.hintText}>Password tidak cocok</Text>
+              </View>
+            )}
           </View>
 
-          {/* BUTTON */}
+          {/* TOMBOL DAFTAR */}
           <TouchableOpacity
-            style={[styles.button, loading && { opacity: 0.7 }]}
+            style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleRegister}
             disabled={loading}
             activeOpacity={0.85}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <>
+                <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.buttonText}>Mendaftar...</Text>
+              </>
             ) : (
               <>
                 <Feather name="user-plus" size={18} color="#fff" style={{ marginRight: 8 }} />
@@ -232,10 +294,10 @@ export default function RegisterPage() {
           </TouchableOpacity>
 
           {/* SUDAH PUNYA AKUN */}
-          <View style={styles.registerRow}>
-            <Text style={styles.registerPrompt}>Sudah punya akun?</Text>
+          <View style={styles.loginRow}>
+            <Text style={styles.loginPrompt}>Sudah punya akun?</Text>
             <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-              <Text style={styles.registerLink}> Masuk</Text>
+              <Text style={styles.loginLink}> Masuk</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -244,6 +306,7 @@ export default function RegisterPage() {
   );
 }
 
+// STYLES
 const BROWN_DARK   = "#5c2d0e";
 const BROWN_ACCENT = "#c8956b";
 const BG           = "#f7f3ef";
@@ -269,8 +332,9 @@ const styles = StyleSheet.create({
     width: 160, height: 160, borderRadius: 80,
     borderWidth: 28, borderColor: "rgba(255,255,255,0.05)",
   },
-
-  logoWrap: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 },
+  logoWrap: {
+    flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24,
+  },
   logoIconBox: {
     width: 48, height: 48, borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -281,10 +345,11 @@ const styles = StyleSheet.create({
     fontSize: 10, color: "rgba(240,213,184,0.6)",
     position: "absolute", bottom: -14, left: 60,
   },
-
   heroTextWrap: { marginTop: 8 },
   heroTitle: { fontSize: 32, fontWeight: "800", color: "#fff", marginBottom: 8 },
-  heroDesc: { fontSize: 14, color: "rgba(240,213,184,0.75)", lineHeight: 22, maxWidth: 280 },
+  heroDesc: {
+    fontSize: 14, color: "rgba(240,213,184,0.75)", lineHeight: 22, maxWidth: 280,
+  },
 
   card: {
     backgroundColor: "#fff", borderRadius: 28,
@@ -298,7 +363,7 @@ const styles = StyleSheet.create({
     paddingTop: 24, paddingHorizontal: 24, paddingBottom: 20,
     borderBottomWidth: 1, borderBottomColor: "#f0e8df",
   },
-  cardTitle: { fontSize: 22, fontWeight: "800", color: TEXT_DARK },
+  cardTitle:    { fontSize: 22, fontWeight: "800", color: TEXT_DARK },
   cardSubtitle: { fontSize: 13, color: TEXT_MID, marginTop: 4 },
 
   fieldGroup: { paddingHorizontal: 24, paddingTop: 20 },
@@ -313,8 +378,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, height: 52,
   },
   inputFocused: { borderColor: BROWN_ACCENT },
-  inputIcon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 15, color: TEXT_DARK },
+  inputIcon:    { marginRight: 12 },
+  input:        { flex: 1, fontSize: 15, color: TEXT_DARK },
+
+  hintRow: {
+    flexDirection: "row", alignItems: "center",
+    marginTop: 6, gap: 5,
+  },
+  hintText: { fontSize: 11, color: "#ef4444", fontWeight: "600" },
 
   button: {
     marginHorizontal: 24, marginTop: 28, marginBottom: 8,
@@ -323,12 +394,13 @@ const styles = StyleSheet.create({
     shadowColor: BROWN_DARK, shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
   },
+  buttonDisabled: { opacity: 0.65 },
   buttonText: { color: "#fff", fontWeight: "800", fontSize: 16 },
 
-  registerRow: {
+  loginRow: {
     flexDirection: "row", justifyContent: "center",
     paddingTop: 12, paddingBottom: 28,
   },
-  registerPrompt: { color: TEXT_MID },
-  registerLink: { color: BROWN_ACCENT, fontWeight: "800" },
+  loginPrompt: { color: TEXT_MID },
+  loginLink:   { color: BROWN_ACCENT, fontWeight: "800" },
 });

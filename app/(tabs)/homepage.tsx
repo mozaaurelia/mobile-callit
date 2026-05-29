@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,12 +15,16 @@ import {
   Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";           // ← ganti dari useNavigation
+import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useFocusEffect } from "@react-navigation/native"; // ← TAMBAHAN
 
 const { width } = Dimensions.get("window");
 const CARD_W = (width - 48 - 12) / 2;
+
+// ── BASE URL ──────────────────────────────────────────────────────────────
+const BASE_URL = "http://192.168.100.231:5000"; // ← SAMAKAN dengan CreateReport
 
 // ── COLORS ───────────────────────────────────────────────────────────────
 const C = {
@@ -108,10 +112,14 @@ export default function UserHomepage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ── Init ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    initUser();
-  }, []);
+  // ── useFocusEffect: re-fetch setiap kali halaman ini aktif ──────────
+  // Ini menggantikan useEffect biasa, sehingga setiap kali user
+  // kembali dari CreateReport/MyReport, data otomatis diperbarui.
+  useFocusEffect(
+    useCallback(() => {
+      initUser();
+    }, [])
+  );
 
   const initUser = async () => {
     try {
@@ -149,9 +157,11 @@ export default function UserHomepage() {
   };
 
   // ── Fetch Reports ─────────────────────────────────────────────────────
+  // Menggunakan BASE_URL yang sama dengan CreateReport agar konsisten.
+  // Backend wajib memfilter laporan berdasarkan user_id dari JWT token.
   const fetchReports = async (token: string) => {
     try {
-      const response = await fetch("http://localhost:5000/api/posts", {
+      const response = await fetch(`${BASE_URL}/api/posts`, { // ← DIPERBAIKI
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -159,7 +169,7 @@ export default function UserHomepage() {
       const data = await response.json();
 
       if (!response.ok) {
-        console.log(data.message);
+        console.log("Fetch error:", data.message);
         return;
       }
 
@@ -173,7 +183,7 @@ export default function UserHomepage() {
     }
   };
 
-  // ── Refresh ───────────────────────────────────────────────────────────
+  // ── Refresh (pull-to-refresh) ─────────────────────────────────────────
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     const token = await AsyncStorage.getItem("token");
@@ -427,15 +437,15 @@ export default function UserHomepage() {
 
                 {/* Image */}
                 <View style={styles.cardImageWrap}>
-               <Image
-  source={{
-    uri: report.image
-      ? `http://localhost:5000/uploads/${report.image}`
-      : "https://via.placeholder.com/400x300?text=No+Image",
-  }}
-  style={styles.cardImage}
-  resizeMode="cover"
-/>
+                  <Image
+                    source={{
+                      uri: report.image
+                        ? `${BASE_URL}/uploads/${report.image}` // ← PAKAI BASE_URL
+                        : "https://via.placeholder.com/400x300?text=No+Image",
+                    }}
+                    style={styles.cardImage}
+                    resizeMode="cover"
+                  />
                   <StatusBadge status={report.status} />
                 </View>
 
@@ -505,7 +515,7 @@ export default function UserHomepage() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// STYLES — tidak ada perubahan
+// STYLES
 // ═════════════════════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
 
