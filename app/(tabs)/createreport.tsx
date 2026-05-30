@@ -106,7 +106,11 @@ export default function CreateReportPage() {
 
     const asset = result.assets[0];
     setImage(asset);
-    setPreview(asset.uri);
+    // Normalisasi URI untuk iOS (hapus file:// prefix jika ada)
+    const previewUri = Platform.OS === "ios"
+      ? asset.uri.replace("file://", "")
+      : asset.uri;
+    setPreview(previewUri);
     setTouched((prev) => ({ ...prev, image: true }));
   };
 
@@ -116,10 +120,10 @@ export default function CreateReportPage() {
   const validate = (): { valid: boolean; missing: string[] } => {
     const missing: string[] = [];
 
-    if (!image)           missing.push("📷 Foto bukti");
-    if (!header.trim())   missing.push("📝 Judul laporan");
+    if (!image) missing.push("📷 Foto bukti");
+    if (!header.trim()) missing.push("📝 Judul laporan");
     if (!location.trim()) missing.push("📍 Lokasi");
-    if (!body.trim())     missing.push("📄 Deskripsi");
+    if (!body.trim()) missing.push("📄 Deskripsi");
 
     return { valid: missing.length === 0, missing };
   };
@@ -172,24 +176,37 @@ export default function CreateReportPage() {
       formData.append("category_id", String(category));
       formData.append("location", location);
 
-
       if (image) {
-        const uriParts = image.uri.split(".");
-        const ext = uriParts[uriParts.length - 1]?.toLowerCase() || "jpg";
-        const mimeMap: Record<string, string> = {
-          jpg: "image/jpeg", jpeg: "image/jpeg",
-          png: "image/png", gif: "image/gif", webp: "image/webp",
-        };
+        if (Platform.OS === "web") {
+          const imgResponse = await fetch(image.uri);
+          const blob = await imgResponse.blob();
 
-        console.log("IMAGE=====", image)
+          formData.append(
+            "image",
+            blob,
+            `photo_${Date.now()}.jpg`
+          );
+        } else {
+          const uriParts = image.uri.split(".");
+          const ext = uriParts[uriParts.length - 1]?.toLowerCase() || "jpg";
 
-        formData.append("image", {
-          uri: Platform.OS === "android" ? image.uri : image.uri.replace("file://", ""),
-          name: `photo_${Date.now()}.${ext}`,
-          type: mimeMap[ext] || "image/jpeg",
-        } as any);
+          const mimeMap: Record<string, string> = {
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            png: "image/png",
+            gif: "image/gif",
+            webp: "image/webp",
+          };
+
+          formData.append("image", {
+            uri: image.uri,
+            name: `photo_${Date.now()}.${ext}`,
+            type: mimeMap[ext] || "image/jpeg",
+          } as any);
+        }
       }
 
+      console.log("FORMDATA====", formData)
       const response = await fetch(`${BASE_URL}/api/posts`, {
         method: "POST",
         headers: {
@@ -198,8 +215,9 @@ export default function CreateReportPage() {
         },
         body: formData,
       });
-      console.log("===============", await response.json());
-      
+      // console.log("===============", await response.json());
+      // console.log(body)
+
 
       const data = await response.json();
 
@@ -502,10 +520,9 @@ export default function CreateReportPage() {
               <View style={[
                 styles.progressFill,
                 {
-                  width: `${
-                    ([!!image, !!header.trim(), !!location.trim(), !!body.trim()]
-                      .filter(Boolean).length / 4) * 100
-                  }%`,
+                  width: `${([!!image, !!header.trim(), !!location.trim(), !!body.trim()]
+                    .filter(Boolean).length / 4) * 100
+                    }%`,
                 },
               ]} />
             </View>
