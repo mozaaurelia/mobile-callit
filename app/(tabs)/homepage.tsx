@@ -24,7 +24,7 @@ const { width } = Dimensions.get("window");
 const CARD_W = (width - 48 - 12) / 2;
 
 // ── BASE URL ──────────────────────────────────────────────────────────────
-const BASE_URL = "http://192.168.100.231:5000"; // ← SAMAKAN dengan CreateReport
+const BASE_URL = "http://localhost:5000"; // ← SAMAKAN dengan CreateReport
 
 // ── COLORS ───────────────────────────────────────────────────────────────
 const C = {
@@ -124,6 +124,8 @@ export default function UserHomepage() {
   const initUser = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
+
+      console.log("TOKEN:", token);
       const storedUser = await AsyncStorage.getItem("user");
 
       if (!token || !storedUser) {
@@ -220,20 +222,64 @@ export default function UserHomepage() {
   };
 
   // ── Logout ────────────────────────────────────────────────────────────
-  const handleLogout = async () => {
-    Alert.alert("Logout", "Yakin ingin keluar?", [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Keluar",
-        style: "destructive",
-        onPress: async () => {
-          await AsyncStorage.removeItem("token");
-          await AsyncStorage.removeItem("user");
-          router.replace("/(auth)/login");
+
+const handleLogout = async () => {
+  if (Platform.OS === "web") {
+    const ok = window.confirm("Yakin ingin keluar?");
+    if (!ok) return;
+
+    await AsyncStorage.clear();
+    router.replace("/(auth)/login");
+  } else {
+    Alert.alert(
+      "Logout",
+      "Yakin ingin keluar?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Keluar",
+          onPress: async () => {
+            await AsyncStorage.clear();
+            router.replace("/(auth)/login");
+          },
         },
-      },
-    ]);
-  };
+      ]
+    );
+  }
+};
+
+
+
+
+
+// const handleLogout = () => {
+//   console.log("LOGOUT DIKLIK");
+
+//   Alert.alert(
+//     "Logout",
+//     "Yakin ingin keluar?",
+//     [
+//       {
+//         text: "Batal",
+//         style: "cancel",
+//       },
+//       {
+//         text: "Keluar",
+//         onPress: async () => {
+//           console.log("KELUAR DIKLIK");
+
+//           await AsyncStorage.clear();
+
+//           console.log("STORAGE DIHAPUS");
+
+//           router.replace("/(auth)/login");
+
+//           console.log("PINDAH LOGIN");
+//         },
+//       },
+//     ]
+//   );
+// };
 
   // ── Filtered Reports ──────────────────────────────────────────────────
   const filteredReports: Report[] = Array.isArray(reports)

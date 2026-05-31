@@ -388,7 +388,7 @@ export default function ProfilePage() {
       {/* ─── BOTTOM NAV ─── */}
       <View style={styles.bottomNav}>
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate("UserHomepage")}
+          onPress={() => (navigation as any).navigate("homepage")}
           style={styles.navItem}
         >
           <Feather name="home" size={22} color="#9b7f6a" />
@@ -396,7 +396,7 @@ export default function ProfilePage() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate("CreateReport")}
+          onPress={() => (navigation as any).navigate("createreport")}
           style={styles.navItem}
         >
           <Feather name="plus-circle" size={22} color="#9b7f6a" />
@@ -404,7 +404,7 @@ export default function ProfilePage() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate("MyReport")}
+          onPress={() => (navigation as any).navigate("myreport")}
           style={styles.navItem}
         >
           <Feather name="file-text" size={22} color="#9b7f6a" />
@@ -412,7 +412,7 @@ export default function ProfilePage() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate("Profile")}
+          onPress={() => (navigation as any).navigate("profile")}
           style={styles.navItem}
         >
           <View style={styles.navActive}>

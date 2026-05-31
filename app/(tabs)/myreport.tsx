@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,18 +18,17 @@ import {
   Dimensions,
 } from "react-native";
 
-// =====================================================
-// EXPO PACKAGES — install dengan:
-//   npx expo install expo-linear-gradient
-//   npx expo install @react-native-async-storage/async-storage
-//   npx expo install @expo/vector-icons
-// =====================================================
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 const { width, height } = Dimensions.get("window");
+
+const FALLBACK_APPROVED_REASON =
+  "Laporan Anda telah diverifikasi dan akan segera ditindak lanjuti oleh petugas.";
+const FALLBACK_REJECTED_REASON =
+  "Laporan yang Anda lampirkan kurang jelas sehingga laporan tidak bisa terverifikasi.";
 
 // =========================
 // STATUS BADGE
@@ -47,17 +46,127 @@ const StatusBadge = ({ status }: { status: string }) => {
         return { bg: "#f3f4f6", text: "#374151", border: "#d1d5db" };
     }
   };
-
   const s = getStyle();
+  return (
+    <View style={[styles.badge, { backgroundColor: s.bg, borderColor: s.border }]}>
+      <Text style={[styles.badgeText, { color: s.text }]}>{status}</Text>
+    </View>
+  );
+};
+
+// =========================
+// REASON BANNER (Card)
+// =========================
+const ReasonBanner = ({ status, reason }: { status: string; reason?: string }) => {
+  const isApproved = status?.toLowerCase() === "approved";
+  const isRejected = status?.toLowerCase() === "rejected";
+  if (!isApproved && !isRejected) return null;
+
+  const displayReason =
+    reason ||
+    (isApproved ? FALLBACK_APPROVED_REASON : FALLBACK_REJECTED_REASON);
 
   return (
     <View
       style={[
-        styles.badge,
-        { backgroundColor: s.bg, borderColor: s.border },
+        styles.reasonBanner,
+        {
+          backgroundColor: isApproved ? "#ecfdf5" : "#fef2f2",
+          borderColor: isApproved ? "#6ee7b7" : "#fca5a5",
+        },
       ]}
     >
-      <Text style={[styles.badgeText, { color: s.text }]}>{status}</Text>
+      <View
+        style={[
+          styles.reasonIconWrap,
+          { backgroundColor: isApproved ? "#d1fae5" : "#fee2e2" },
+        ]}
+      >
+        <Feather
+          name={isApproved ? "check-circle" : "x-circle"}
+          size={13}
+          color={isApproved ? "#059669" : "#dc2626"}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text
+          style={[
+            styles.reasonLabel,
+            { color: isApproved ? "#065f46" : "#991b1b" },
+          ]}
+        >
+          {isApproved ? "Pesan dari Admin" : "Alasan Penolakan"}
+        </Text>
+        <Text
+          style={[
+            styles.reasonText,
+            { color: isApproved ? "#065f46" : "#991b1b" },
+          ]}
+        >
+          {displayReason}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
+// =========================
+// MODAL REASON BANNER
+// =========================
+const ModalReasonBanner = ({
+  status,
+  reason,
+}: {
+  status: string;
+  reason?: string;
+}) => {
+  if (!reason) return null;
+  const isApproved = status?.toLowerCase() === "approved";
+  const isRejected = status?.toLowerCase() === "rejected";
+  if (!isApproved && !isRejected) return null;
+
+  return (
+    <View
+      style={[
+        styles.modalReasonBanner,
+        {
+          backgroundColor: isApproved ? "#ecfdf5" : "#fef2f2",
+          borderColor: isApproved ? "#6ee7b7" : "#fca5a5",
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.modalReasonIconWrap,
+          { backgroundColor: isApproved ? "#d1fae5" : "#fee2e2" },
+        ]}
+      >
+        <Feather
+          name={isApproved ? "check-circle" : "x-circle"}
+          size={18}
+          color={isApproved ? "#059669" : "#dc2626"}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text
+          style={[
+            styles.modalReasonLabel,
+            { color: isApproved ? "#065f46" : "#991b1b" },
+          ]}
+        >
+          {isApproved
+            ? "✅ Laporan Disetujui — Pesan dari Admin"
+            : "❌ Laporan Ditolak — Alasan dari Admin"}
+        </Text>
+        <Text
+          style={[
+            styles.modalReasonText,
+            { color: isApproved ? "#065f46" : "#991b1b" },
+          ]}
+        >
+          {reason}
+        </Text>
+      </View>
     </View>
   );
 };
@@ -77,7 +186,6 @@ export default function MyReportsPage() {
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [chatMessage, setChatMessage] = useState("");
   const [chats, setChats] = useState<any[]>([]);
-
   const [loading, setLoading] = useState(true);
 
   // =========================
@@ -89,18 +197,16 @@ export default function MyReportsPage() {
       const userData = await AsyncStorage.getItem("user");
 
       if (!token || !userData) {
-        (navigation as any).replace("Login");
+        navigation.replace("Login");
         return;
       }
 
       try {
         const parsedUser = JSON.parse(userData);
-
         if (parsedUser.role !== "user") {
-          (navigation as any).replace("Login");
+          navigation.replace("Login");
           return;
         }
-
         setUser(parsedUser);
 
         const savedProfile = await AsyncStorage.getItem(
@@ -113,10 +219,9 @@ export default function MyReportsPage() {
         console.log(err);
         await AsyncStorage.removeItem("token");
         await AsyncStorage.removeItem("user");
-        (navigation as any).replace("Login");
+        navigation.replace("Login");
       }
     };
-
     init();
   }, []);
 
@@ -128,19 +233,13 @@ export default function MyReportsPage() {
       const response = await fetch("http://localhost:5000/api/posts", {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        setReports([]);
-        return;
-      }
+      if (!response.ok) { setReports([]); return; }
 
       const safeData = Array.isArray(data) ? data : [];
       const myReports = safeData.filter(
         (item: any) => item.user_id === parsedUser.id
       );
-
       setReports(myReports);
     } catch (err) {
       console.log(err);
@@ -151,47 +250,44 @@ export default function MyReportsPage() {
   };
 
   // =========================
-  // DELETE REPORT
+  // DELETE REPORT (pending only)
   // =========================
   const handleDelete = (id: number) => {
-    Alert.alert(
-      "Hapus Laporan",
-      "Yakin ingin menghapus laporan?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Hapus",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem("token");
-
-              const response = await fetch(
-                `http://localhost:5000/api/posts/${id}`,
-                {
-                  method: "DELETE",
-                  headers: { Authorization: `Bearer ${token}` },
-                }
-              );
-
-              const data = await response.json();
-
-              if (!response.ok) {
-                Alert.alert("Gagal", data.message || "Gagal menghapus laporan");
-                return;
+    Alert.alert("Hapus Laporan", "Yakin ingin menghapus laporan?", [
+      { text: "Batal", style: "cancel" },
+      {
+        text: "Hapus",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const token = await AsyncStorage.getItem("token");
+            const response = await fetch(
+              `http://localhost:5000/api/posts/${id}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
               }
+            );
+            const data = await response.json();
 
-              setReports(reports.filter((item) => item.id !== id));
-              setSelectedReport(null);
-              Alert.alert("Berhasil", "Laporan berhasil dihapus");
-            } catch (err) {
-              console.log(err);
-              Alert.alert("Error", "Terjadi kesalahan");
+              // INI BARU DI TAMBAHIN
+            console.log("DELETE STATUS:", response.status);
+            console.log("DELETE RESPONSE:", data);  
+
+            if (!response.ok) {
+              Alert.alert("Gagal", data.message || "Gagal menghapus laporan");
+              return;
             }
-          },
+            setReports((prev) => prev.filter((item) => item.id !== id));
+            setSelectedReport(null);
+            Alert.alert("Berhasil", "Laporan berhasil dihapus");
+          } catch (err) {
+            console.log(err);
+            Alert.alert("Error", "Terjadi kesalahan");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   // =========================
@@ -205,11 +301,9 @@ export default function MyReportsPage() {
         report.body?.toLowerCase().includes(query) ||
         report.location?.toLowerCase().includes(query) ||
         report.status?.toLowerCase().includes(query);
-
       const matchesFilter =
         filter === "All" ||
         report.status?.toLowerCase() === filter.toLowerCase();
-
       return matchesSearch && matchesFilter;
     }
   );
@@ -220,15 +314,12 @@ export default function MyReportsPage() {
   const fetchChats = async (reportId: number) => {
     try {
       const token = await AsyncStorage.getItem("token");
-
       const response = await fetch(
         `http://localhost:5000/api/chats/${reportId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
       const data = await response.json();
       if (!response.ok) return;
-
       setChats(data);
     } catch (err) {
       console.log(err);
@@ -241,9 +332,7 @@ export default function MyReportsPage() {
   const sendMessage = async () => {
     try {
       if (!chatMessage.trim() || !selectedReport) return;
-
       const token = await AsyncStorage.getItem("token");
-
       const response = await fetch("http://localhost:5000/api/chats", {
         method: "POST",
         headers: {
@@ -255,14 +344,8 @@ export default function MyReportsPage() {
           message: chatMessage,
         }),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        Alert.alert("Gagal", data.message);
-        return;
-      }
-
+      if (!response.ok) { Alert.alert("Gagal", data.message); return; }
       setChatMessage("");
       fetchChats(selectedReport.id);
     } catch (err) {
@@ -276,7 +359,7 @@ export default function MyReportsPage() {
   const handleLogout = async () => {
     await AsyncStorage.removeItem("token");
     await AsyncStorage.removeItem("user");
-    (navigation as any).replace("Login");
+    navigation.replace("Login");
   };
 
   // =========================
@@ -294,66 +377,93 @@ export default function MyReportsPage() {
   // =========================
   // REPORT CARD
   // =========================
-  const ReportCard = ({ report }: { report: any }) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.85}
-      onPress={() => {
-        setSelectedReport(report);
-        fetchChats(report.id);
-      }}
-    >
-      <View style={styles.cardImageWrap}>
-        <Image
-          source={{
-            uri: report.image
-              ? `http://localhost:5000/uploads/${report.image}`
-              : "https://placehold.co/400x200",
-          }}
-          style={styles.cardImage}
-          resizeMode="cover"
-        />
-        <View style={styles.cardBadgePos}>
-          <StatusBadge status={report.status} />
-        </View>
-      </View>
-
-      <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {report.header}
-        </Text>
-        <Text style={styles.cardDate}>
-          {report.created_at
-            ? new Date(report.created_at).toLocaleDateString("id-ID")
-            : ""}
-        </Text>
-        <Text style={styles.cardDesc} numberOfLines={3}>
-          {report.body}
-        </Text>
-        <View style={styles.cardLocation}>
-          <Feather name="map-pin" size={13} color="#9b8573" />
-          <Text style={styles.cardLocationText}>{report.location || "-"}</Text>
+  const ReportCard = ({ report }: { report: any }) => {
+    const isPending = report.status?.toLowerCase() === "pending";
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.85}
+        onPress={() => {
+          setSelectedReport(report);
+          fetchChats(report.id);
+        }}
+      >
+        {/* Image */}
+        <View style={styles.cardImageWrap}>
+          <Image
+            source={{
+              uri: report.image
+                ? `http://localhost:5000/uploads/${report.image}`
+                : "https://placehold.co/400x200",
+            }}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+          <View style={styles.cardBadgePos}>
+            <StatusBadge status={report.status} />
+          </View>
         </View>
 
-        {/* DELETE */}
-        <TouchableOpacity
-          onPress={() => handleDelete(report.id)}
-          style={styles.deleteBtn}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={["#ef4444", "#f87171"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.deleteBtnGradient}
-          >
-            <Feather name="trash-2" size={15} color="#fff" />
-            <Text style={styles.deleteBtnText}>Delete Report</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+        {/* Body */}
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {report.header}
+          </Text>
+          <Text style={styles.cardDate}>
+            {report.created_at
+              ? new Date(report.created_at).toLocaleDateString("id-ID")
+              : ""}
+          </Text>
+          <Text style={styles.cardDesc} numberOfLines={3}>
+            {report.body}
+          </Text>
+          <View style={styles.cardLocation}>
+            <Feather name="map-pin" size={13} color="#9b8573" />
+            <Text style={styles.cardLocationText}>
+              {report.location || "-"}
+            </Text>
+          </View>
+
+          {/* Reason Banner */}
+          <ReasonBanner status={report.status} reason={report.reason} />
+
+          {/* Pending notice inside card */}
+          {isPending && (
+            <View style={styles.pendingBanner}>
+              <View style={styles.pendingIconWrap}>
+                <Feather name="clock" size={13} color="#d97706" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pendingLabel}>⏳ Menunggu Verifikasi</Text>
+                <Text style={styles.pendingText}>
+                  Laporan sedang dalam proses review oleh admin.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* DELETE — only pending */}
+          {isPending && (
+            <TouchableOpacity
+              onPress={() => handleDelete(report.id)}
+              style={styles.deleteBtn}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={["#ef4444", "#f87171"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.deleteBtnGradient}
+              >
+                <Feather name="trash-2" size={15} color="#fff" />
+                <Text style={styles.deleteBtnText}>Delete Report</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -380,7 +490,6 @@ export default function MyReportsPage() {
             <Text style={styles.topbarTitle}>Kelola laporan kamu ✨</Text>
           </View>
         </View>
-
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
           <Feather name="log-out" size={18} color="#ffb088" />
         </TouchableOpacity>
@@ -389,7 +498,12 @@ export default function MyReportsPage() {
       {/* ─── SEARCH BAR ─── */}
       <View style={styles.searchWrap}>
         <View style={styles.searchRow}>
-          <Feather name="search" size={17} color="#a07a5e" style={{ marginRight: 8 }} />
+          <Feather
+            name="search"
+            size={17}
+            color="#a07a5e"
+            style={{ marginRight: 8 }}
+          />
           <TextInput
             placeholder="Cari laporan..."
             placeholderTextColor="#b29c8b"
@@ -451,7 +565,7 @@ export default function MyReportsPage() {
       {/* ─── BOTTOM NAV ─── */}
       <View style={styles.bottomNav}>
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate("UserHomepage")}
+          onPress={() => navigation.navigate("homepage")}
           style={styles.navItem}
         >
           <Feather name="home" size={22} color="#9b7f6a" />
@@ -459,7 +573,7 @@ export default function MyReportsPage() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate("CreateReport")}
+          onPress={() => navigation.navigate("createreport")}
           style={styles.navItem}
         >
           <Feather name="plus-circle" size={22} color="#9b7f6a" />
@@ -467,17 +581,19 @@ export default function MyReportsPage() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate("MyReport")}
+          onPress={() => navigation.navigate("myreport")}
           style={styles.navItem}
         >
           <View style={styles.navActive}>
             <Feather name="file-text" size={22} color="#fff" />
           </View>
-          <Text style={[styles.navLabel, { color: "#7a3f1c" }]}>My Reports</Text>
+          <Text style={[styles.navLabel, { color: "#7a3f1c" }]}>
+            My Reports
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => (navigation as any).navigate("Profile")}
+          onPress={() => navigation.navigate("profile")}
           style={styles.navItem}
         >
           <Feather name="user" size={22} color="#9b7f6a" />
@@ -485,7 +601,9 @@ export default function MyReportsPage() {
         </TouchableOpacity>
       </View>
 
-      {/* ─── MODAL DETAIL ─── */}
+      {/* ══════════════════════════════
+          MODAL DETAIL LAPORAN
+      ══════════════════════════════ */}
       <Modal
         visible={!!selectedReport}
         animationType="slide"
@@ -507,14 +625,12 @@ export default function MyReportsPage() {
                 >
                   <Feather name="arrow-left" size={18} color="#3d2a20" />
                 </TouchableOpacity>
-
                 <View style={{ flex: 1, marginHorizontal: 12 }}>
                   <Text style={styles.modalTitle} numberOfLines={1}>
                     {selectedReport?.header}
                   </Text>
                   <Text style={styles.modalSubtitle}>Detail laporan</Text>
                 </View>
-
                 {selectedReport && (
                   <StatusBadge status={selectedReport.status} />
                 )}
@@ -536,7 +652,7 @@ export default function MyReportsPage() {
                   resizeMode="cover"
                 />
 
-                {/* META */}
+                {/* Meta */}
                 <View style={styles.metaRow}>
                   <View style={styles.metaChip}>
                     <Feather name="map-pin" size={14} color="#6f4324" />
@@ -554,10 +670,16 @@ export default function MyReportsPage() {
                   </View>
                 </View>
 
-                {/* BODY */}
+                {/* Body */}
                 <View style={styles.bodyBox}>
                   <Text style={styles.bodyText}>{selectedReport?.body}</Text>
                 </View>
+
+                {/* Modal Reason Banner */}
+                <ModalReasonBanner
+                  status={selectedReport?.status}
+                  reason={selectedReport?.reason}
+                />
 
                 {/* CHAT SECTION */}
                 <View style={styles.chatSection}>
@@ -567,50 +689,63 @@ export default function MyReportsPage() {
                   </View>
 
                   {chats.length === 0 ? (
-                    <Text style={styles.chatEmpty}>Belum ada pesan</Text>
+                    <View style={styles.chatEmptyWrap}>
+                      <Feather name="info" size={22} color="#b89f8d" style={{ opacity: 0.5, marginBottom: 6 }} />
+                      <Text style={styles.chatEmpty}>
+                        Belum ada pesan. Mulai diskusi dengan admin.
+                      </Text>
+                    </View>
                   ) : (
-                    chats.map((chat) => (
-                      <View
-                        key={chat.id}
-                        style={[
-                          styles.chatBubbleWrap,
-                          chat.sender_id === user.id
-                            ? { alignItems: "flex-end" }
-                            : { alignItems: "flex-start" },
-                        ]}
-                      >
-                        {chat.sender_id === user.id ? (
-                          <LinearGradient
-                            colors={["#6f4324", "#8a5a39"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={[styles.chatBubble, styles.chatBubbleRight]}
-                          >
-                            <Text style={styles.chatBubbleTextWhite}>
-                              {chat.message}
-                            </Text>
-                            <Text style={styles.chatBubbleTime}>
-                              {new Date(chat.created_at).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </Text>
-                          </LinearGradient>
-                        ) : (
-                          <View style={[styles.chatBubble, styles.chatBubbleLeft]}>
-                            <Text style={styles.chatBubbleTextDark}>
-                              {chat.message}
-                            </Text>
-                            <Text style={[styles.chatBubbleTime, { color: "#a07a5e" }]}>
-                              {new Date(chat.created_at).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    ))
+                    chats.map((chat) => {
+                      const isMe = chat.sender_id === user.id;
+                      return (
+                        <View
+                          key={chat.id}
+                          style={[
+                            styles.chatBubbleWrap,
+                            isMe
+                              ? { alignItems: "flex-end" }
+                              : { alignItems: "flex-start" },
+                          ]}
+                        >
+                          {isMe ? (
+                            <LinearGradient
+                              colors={["#6f4324", "#8a5a39"]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 0 }}
+                              style={[styles.chatBubble, styles.chatBubbleRight]}
+                            >
+                              <Text style={styles.chatBubbleTextWhite}>
+                                {chat.message}
+                              </Text>
+                              <Text style={styles.chatBubbleTime}>
+                                {new Date(chat.created_at).toLocaleTimeString(
+                                  [],
+                                  { hour: "2-digit", minute: "2-digit" }
+                                )}
+                              </Text>
+                            </LinearGradient>
+                          ) : (
+                            <View style={[styles.chatBubble, styles.chatBubbleLeft]}>
+                              <Text style={styles.chatBubbleTextDark}>
+                                {chat.message}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.chatBubbleTime,
+                                  { color: "#a07a5e" },
+                                ]}
+                              >
+                                {new Date(chat.created_at).toLocaleTimeString(
+                                  [],
+                                  { hour: "2-digit", minute: "2-digit" }
+                                )}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })
                   )}
                 </View>
               </ScrollView>
@@ -624,6 +759,8 @@ export default function MyReportsPage() {
                     placeholder="Ketik pesan..."
                     placeholderTextColor="#b29c8b"
                     style={styles.chatInput}
+                    onSubmitEditing={sendMessage}
+                    returnKeyType="send"
                   />
                   <TouchableOpacity onPress={sendMessage} activeOpacity={0.85}>
                     <LinearGradient
@@ -650,10 +787,7 @@ export default function MyReportsPage() {
 // STYLES
 // =========================
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#f7f3ef",
-  },
+  safe: { flex: 1, backgroundColor: "#f7f3ef" },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
@@ -676,11 +810,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingTop: Platform.OS === "android" ? 16 : 14,
   },
-  topbarLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
+  topbarLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   avatar: {
     width: 40,
     height: 40,
@@ -695,11 +825,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     textTransform: "uppercase",
   },
-  topbarTitle: {
-    fontSize: 16,
-    color: "#fff",
-    fontWeight: "800",
-  },
+  topbarTitle: { fontSize: 16, color: "#fff", fontWeight: "800" },
   logoutBtn: {
     width: 38,
     height: 38,
@@ -730,26 +856,12 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: "#2b1d15",
-    padding: 0,
-  },
+  searchInput: { flex: 1, fontSize: 13, color: "#2b1d15", padding: 0 },
 
   // ─── FILTER ───
-  filterRow: {
-    paddingHorizontal: 12,
-    paddingBottom: 10,
-  },
-  filterBtnWrap: {
-    marginHorizontal: 4,
-  },
-  filterBtnActive: {
-    paddingHorizontal: 18,
-    paddingVertical: 9,
-    borderRadius: 18,
-  },
+  filterRow: { paddingHorizontal: 12, paddingBottom: 10 },
+  filterBtnWrap: { marginHorizontal: 4 },
+  filterBtnActive: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 18 },
   filterBtn: {
     paddingHorizontal: 18,
     paddingVertical: 9,
@@ -758,23 +870,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eadfd4",
   },
-  filterBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#7a5c44",
-  },
-  filterBtnTextActive: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#fff",
-  },
+  filterBtnText: { fontSize: 13, fontWeight: "700", color: "#7a5c44" },
+  filterBtnTextActive: { fontSize: 13, fontWeight: "700", color: "#fff" },
 
   // ─── LIST ───
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 100,
-  },
+  listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 100 },
 
   // ─── EMPTY ───
   emptyWrap: {
@@ -783,21 +883,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 40,
   },
-  emptyEmoji: {
-    fontSize: 56,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#6f4324",
-    marginBottom: 8,
-  },
-  emptyDesc: {
-    fontSize: 13,
-    color: "#9b8573",
-    textAlign: "center",
-  },
+  emptyEmoji: { fontSize: 56, marginBottom: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: "800", color: "#6f4324", marginBottom: 8 },
+  emptyDesc: { fontSize: 13, color: "#9b8573", textAlign: "center" },
 
   // ─── CARD ───
   card: {
@@ -813,53 +901,83 @@ const styles = StyleSheet.create({
     elevation: 4,
     overflow: "hidden",
   },
-  cardImageWrap: {
-    position: "relative",
-  },
-  cardImage: {
-    width: "100%",
-    height: 180,
-  },
-  cardBadgePos: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-  },
-  cardBody: {
-    padding: 16,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#2b1d15",
-  },
-  cardDate: {
-    fontSize: 11,
-    color: "#a07a5e",
-    marginTop: 3,
-    marginBottom: 6,
-  },
-  cardDesc: {
-    fontSize: 13,
-    color: "#6b5040",
-    lineHeight: 19,
-    marginBottom: 10,
-  },
+  cardImageWrap: { position: "relative" },
+  cardImage: { width: "100%", height: 180 },
+  cardBadgePos: { position: "absolute", top: 12, right: 12 },
+  cardBody: { padding: 16 },
+  cardTitle: { fontSize: 16, fontWeight: "800", color: "#2b1d15" },
+  cardDate: { fontSize: 11, color: "#a07a5e", marginTop: 3, marginBottom: 6 },
+  cardDesc: { fontSize: 13, color: "#6b5040", lineHeight: 19, marginBottom: 10 },
   cardLocation: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginBottom: 14,
+    marginBottom: 10,
   },
-  cardLocationText: {
-    fontSize: 12,
-    color: "#9b8573",
-    marginLeft: 4,
-  },
-  deleteBtn: {
+  cardLocationText: { fontSize: 12, color: "#9b8573", marginLeft: 4 },
+
+  // ─── REASON BANNER (card) ───
+  reasonBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderWidth: 1,
     borderRadius: 14,
-    overflow: "hidden",
+    padding: 10,
+    marginBottom: 10,
   },
+  reasonIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  reasonLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  reasonText: { fontSize: 11, lineHeight: 16 },
+
+  // ─── PENDING BANNER (card) ───
+  pendingBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 10,
+  },
+  pendingIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#fef3c7",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  pendingLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#92400e",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  pendingText: { fontSize: 11, color: "#92400e", lineHeight: 16 },
+
+  // ─── DELETE ───
+  deleteBtn: { borderRadius: 14, overflow: "hidden", marginTop: 4 },
   deleteBtnGradient: {
     flexDirection: "row",
     alignItems: "center",
@@ -881,11 +999,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "capitalize",
-  },
+  badgeText: { fontSize: 11, fontWeight: "800", textTransform: "capitalize" },
 
   // ─── BOTTOM NAV ───
   bottomNav: {
@@ -902,10 +1016,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
   },
-  navItem: {
-    flex: 1,
-    alignItems: "center",
-  },
+  navItem: { flex: 1, alignItems: "center" },
   navActive: {
     width: 44,
     height: 44,
@@ -928,10 +1039,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
-  modalKAV: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
+  modalKAV: { flex: 1, justifyContent: "flex-end" },
   modalContainer: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 32,
@@ -954,32 +1062,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#2b1d15",
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: "#9b8573",
-    marginTop: 1,
-  },
-  modalScrollContent: {
-    padding: 18,
-    paddingBottom: 30,
-  },
+  modalTitle: { fontSize: 17, fontWeight: "800", color: "#2b1d15" },
+  modalSubtitle: { fontSize: 12, color: "#9b8573", marginTop: 1 },
+  modalScrollContent: { padding: 18, paddingBottom: 30 },
   modalImage: {
     width: "100%",
     height: 220,
     borderRadius: 20,
     marginBottom: 16,
   },
-  metaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 16,
-  },
+  metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
   metaChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -1001,18 +1093,70 @@ const styles = StyleSheet.create({
     borderColor: "#f0ebe5",
     borderRadius: 18,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 16,
   },
-  bodyText: {
-    fontSize: 14,
-    color: "#5b4638",
-    lineHeight: 22,
+  bodyText: { fontSize: 14, color: "#5b4638", lineHeight: 22 },
+
+  // ─── MODAL REASON BANNER ───
+  modalReasonBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
   },
+  modalReasonIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  modalReasonLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  modalReasonText: { fontSize: 13, lineHeight: 20 },
+
+  // ─── MODAL PENDING BANNER ───
+  modalPendingBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+  },
+  modalPendingIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#fef3c7",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  modalPendingLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#92400e",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  modalPendingText: { fontSize: 13, color: "#92400e", lineHeight: 20 },
 
   // ─── CHAT ───
-  chatSection: {
-    marginTop: 4,
-  },
+  chatSection: { marginTop: 4 },
   chatHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1026,37 +1170,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginLeft: 4,
   },
-  chatEmpty: {
-    fontSize: 13,
-    color: "#b29c8b",
-    textAlign: "center",
-    marginVertical: 12,
-  },
-  chatBubbleWrap: {
-    marginBottom: 10,
-  },
-  chatBubble: {
-    maxWidth: "80%",
-    padding: 13,
-    borderRadius: 18,
-  },
-  chatBubbleRight: {
-    borderTopRightRadius: 4,
-  },
-  chatBubbleLeft: {
-    backgroundColor: "#f5eee8",
-    borderTopLeftRadius: 4,
-  },
-  chatBubbleTextWhite: {
-    fontSize: 13,
-    color: "#fff",
-    lineHeight: 19,
-  },
-  chatBubbleTextDark: {
-    fontSize: 13,
-    color: "#3d2a20",
-    lineHeight: 19,
-  },
+  chatEmptyWrap: { alignItems: "center", paddingVertical: 24 },
+  chatEmpty: { fontSize: 12, color: "#b29c8b", textAlign: "center" },
+  chatBubbleWrap: { marginBottom: 10 },
+  chatBubble: { maxWidth: "80%", padding: 13, borderRadius: 18 },
+  chatBubbleRight: { borderTopRightRadius: 4 },
+  chatBubbleLeft: { backgroundColor: "#f5eee8", borderTopLeftRadius: 4 },
+  chatBubbleTextWhite: { fontSize: 13, color: "#fff", lineHeight: 19 },
+  chatBubbleTextDark: { fontSize: 13, color: "#3d2a20", lineHeight: 19 },
   chatBubbleTime: {
     fontSize: 10,
     color: "rgba(255,255,255,0.6)",
@@ -1080,12 +1201,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     gap: 8,
   },
-  chatInput: {
-    flex: 1,
-    fontSize: 13,
-    color: "#2b1d15",
-    paddingVertical: 6,
-  },
+  chatInput: { flex: 1, fontSize: 13, color: "#2b1d15", paddingVertical: 6 },
   chatSendBtn: {
     width: 42,
     height: 42,

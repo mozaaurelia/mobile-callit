@@ -572,24 +572,24 @@ export default function CreateReportPage() {
 
         {/* ─── BOTTOM NAV ─── */}
         <View style={styles.bottomNav}>
-          <TouchableOpacity onPress={() => navigation.navigate("UserHomepage")} style={styles.navItem}>
+          <TouchableOpacity onPress={() => navigation.navigate("homepage")} style={styles.navItem}>
             <Feather name="home" size={22} color="#9b7f6a" />
             <Text style={styles.navLabel}>Home</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => navigation.navigate("CreateReport")} style={styles.navItem}>
+          <TouchableOpacity onPress={() => navigation.navigate("createreport")} style={styles.navItem}>
             <View style={styles.navActive}>
               <Feather name="plus-circle" size={22} color="#fff" />
             </View>
             <Text style={[styles.navLabel, { color: "#7a3f1c" }]}>Create</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => navigation.navigate("MyReport")} style={styles.navItem}>
+          <TouchableOpacity onPress={() => navigation.navigate("myreport")} style={styles.navItem}>
             <Feather name="file-text" size={22} color="#9b7f6a" />
             <Text style={styles.navLabel}>My Reports</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => navigation.navigate("Profile")} style={styles.navItem}>
+          <TouchableOpacity onPress={() => navigation.navigate("profile")} style={styles.navItem}>
             <Feather name="user" size={22} color="#9b7f6a" />
             <Text style={styles.navLabel}>Profile</Text>
           </TouchableOpacity>
