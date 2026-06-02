@@ -249,45 +249,37 @@ export default function MyReportsPage() {
     }
   };
 
+  // const test12 = (id : number) => {
+  //   console.log(id)
+  // }
+
   // =========================
   // DELETE REPORT (pending only)
   // =========================
-  const handleDelete = (id: number) => {
-    Alert.alert("Hapus Laporan", "Yakin ingin menghapus laporan?", [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Hapus",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const token = await AsyncStorage.getItem("token");
-            const response = await fetch(
-              `http://localhost:5000/api/posts/${id}`,
-              {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
-              }
-            );
-            const data = await response.json();
+ const handleDelete = async (id: number) => {
+    console.log(id)
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const response = await fetch(`http://localhost:5000/api/posts/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-              // INI BARU DI TAMBAHIN
-            console.log("DELETE STATUS:", response.status);
-            console.log("DELETE RESPONSE:", data);  
+      const data = await response.json();
 
-            if (!response.ok) {
-              Alert.alert("Gagal", data.message || "Gagal menghapus laporan");
-              return;
-            }
-            setReports((prev) => prev.filter((item) => item.id !== id));
-            setSelectedReport(null);
-            Alert.alert("Berhasil", "Laporan berhasil dihapus");
-          } catch (err) {
-            console.log(err);
-            Alert.alert("Error", "Terjadi kesalahan");
-          }
-        },
-      },
-    ]);
+      console.log(data)
+
+      if (!response.ok){
+        Alert.alert("Gagal", data.message || "Tidak dapat menghapus laporan.");
+      } else {
+        Alert.alert("Berhasil", "Laporan berhasil dihapus.");
+        const updatedReports = reports.filter((report) => report.id !== id);
+        setReports(updatedReports);
+      }
+
+    } catch (error) {
+      console.error("Error deleting report:", error);
+    }
   };
 
   // =========================
